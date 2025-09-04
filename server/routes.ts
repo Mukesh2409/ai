@@ -94,8 +94,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 Current document content: ${documentText}
 
-If the user asks you to make changes to their document, respond with JSON in this format:
-{"type": "edit", "content": "new content to replace in document", "explanation": "brief explanation of changes"}
+If the user asks you to make changes to their document, respond with JSON in this exact format:
+{"type": "edit", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Your Heading Text"}]}, {"type": "paragraph", "content": [{"type": "text", "text": "Your paragraph text here."}]}], "explanation": "brief explanation of changes"}
+
+IMPORTANT: 
+- Every heading MUST have a "content" array with text objects
+- Every paragraph MUST have a "content" array with text objects
+- Use proper TipTap JSON structure
+- Only return raw JSON, no markdown formatting or additional text
 
 Otherwise, respond normally with conversational text. You can help with writing, answer questions, provide suggestions, etc.`
             },
