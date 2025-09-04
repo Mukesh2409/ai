@@ -94,16 +94,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 Current document content: ${documentText}
 
-If the user asks you to make changes to their document, respond with JSON in this exact format:
-{"type": "edit", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Your Heading Text"}]}, {"type": "paragraph", "content": [{"type": "text", "text": "Your paragraph text here."}]}], "explanation": "brief explanation of changes"}
+If the user asks you to write content, make changes, or edit their document, respond with JSON in this exact format:
+{"type": "edit", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Your text content here."}]}], "explanation": "brief explanation of changes"}
 
-IMPORTANT: 
-- Every heading MUST have a "content" array with text objects
-- Every paragraph MUST have a "content" array with text objects
-- Use proper TipTap JSON structure
-- Only return raw JSON, no markdown formatting or additional text
+For headings, use:
+{"type": "edit", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Your Heading"}]}, {"type": "paragraph", "content": [{"type": "text", "text": "Your paragraph."}]}], "explanation": "explanation"}
 
-Otherwise, respond normally with conversational text. You can help with writing, answer questions, provide suggestions, etc.`
+IMPORTANT RULES:
+- ONLY return clean JSON - no markdown blocks, no extra text
+- Every element needs proper TipTap structure
+- Use double quotes only, no single quotes
+- No control characters or line breaks in JSON strings
+- For simple text content, you can also use: {"type": "edit", "content": "Plain text here", "explanation": "explanation"}
+
+Otherwise, respond normally with conversational text.`
             },
             {
               role: "user",
@@ -127,19 +131,39 @@ Otherwise, respond normally with conversational text. You can help with writing,
       let finalAiContent = aiContent;
       
       // Look for JSON in the AI response (even if wrapped in text)
-      const jsonMatch = aiContent.match(/```json\s*([\s\S]*?)\s*```|({\s*"type"\s*:\s*"edit"[\s\S]*?})/);
+      const jsonMatch = aiContent.match(/```json\s*([\s\S]*?)\s*```|({\s*["']type["']\s*:\s*["']edit["'][\s\S]*?})/);
       
       if (jsonMatch) {
         try {
-          const jsonStr = jsonMatch[1] || jsonMatch[2];
+          let jsonStr = jsonMatch[1] || jsonMatch[2];
+          // Clean up the JSON string - remove control characters and fix common issues
+          jsonStr = jsonStr
+            .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control characters
+            .replace(/\\\\/g, '/') // Fix escaped slashes
+            .replace(/\\n/g, '\n') // Fix newlines
+            .replace(/\\t/g, '\t') // Fix tabs
+            .trim();
+            
           const parsed_ai = JSON.parse(jsonStr);
           
           if (parsed_ai.type === "edit" && parsed_ai.content) {
+            // Ensure content is an array for TipTap
+            let content = parsed_ai.content;
+            if (typeof content === 'string') {
+              // Convert string to paragraph structure
+              content = [{
+                type: "paragraph",
+                content: [{ type: "text", text: content }]
+              }];
+            } else if (!Array.isArray(content)) {
+              throw new Error('Content must be an array or string');
+            }
+            
             // AI wants to edit the document
             const updatedDoc = await storage.updateDocument(parsed.documentId!, {
               content: {
                 type: "doc",
-                content: parsed_ai.content
+                content: content
               }
             });
             
@@ -152,6 +176,7 @@ Otherwise, respond normally with conversational text. You can help with writing,
           }
         } catch (e) {
           console.error('Error parsing AI edit response:', e);
+          console.error('Raw AI content:', aiContent);
           // Not valid JSON or not an edit request, treat as normal chat
         }
       }
