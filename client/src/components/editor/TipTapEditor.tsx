@@ -6,7 +6,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { useEffect } from 'react';
+import { useEffect, useImperativeHandle, forwardRef } from 'react';
 import type { Document } from '@shared/schema';
 
 interface TipTapEditorProps {
@@ -14,7 +14,13 @@ interface TipTapEditorProps {
   onSelectionUpdate?: (selection: { from: number; to: number; text: string }) => void;
 }
 
-export function TipTapEditor({ document, onSelectionUpdate }: TipTapEditorProps) {
+export interface TipTapEditorRef {
+  replaceSelection: (from: number, to: number, newText: string) => void;
+  insertContent: (content: string) => void;
+  replaceSelectedText: (newText: string) => void;
+}
+
+export const TipTapEditor = forwardRef<TipTapEditorRef, TipTapEditorProps>(({ document, onSelectionUpdate }, ref) => {
   const queryClient = useQueryClient();
 
   const updateDocumentMutation = useMutation({
@@ -96,6 +102,23 @@ export function TipTapEditor({ document, onSelectionUpdate }: TipTapEditorProps)
     }
   };
 
+  const replaceSelectedText = (newText: string) => {
+    if (editor) {
+      const { from, to } = editor.state.selection;
+      editor.chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .insertContent(newText)
+        .run();
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    replaceSelection,
+    insertContent,
+    replaceSelectedText,
+  }));
+
   return (
     <div className="h-full">
       <EditorContent 
@@ -104,4 +127,4 @@ export function TipTapEditor({ document, onSelectionUpdate }: TipTapEditorProps)
       />
     </div>
   );
-}
+});

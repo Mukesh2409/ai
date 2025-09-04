@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TipTapEditor } from "@/components/editor/TipTapEditor";
+import { TipTapEditor, type TipTapEditorRef } from "@/components/editor/TipTapEditor";
 import { FloatingToolbar } from "@/components/editor/FloatingToolbar";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { PreviewModal } from "@/components/editor/PreviewModal";
@@ -18,14 +18,14 @@ export default function EditorPage() {
     originalText: string;
     suggestedText: string;
     reasoning: string;
-    selection?: { from: number; to: number };
+    selectedText?: string;
   } | null>(null);
   
   const [customEditPrompt, setCustomEditPrompt] = useState("");
   const [isCustomEditOpen, setIsCustomEditOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<TipTapEditorRef>(null);
   const { selection } = useTextSelection();
   const { processEdit, isLoading } = useAIEdit();
   const { toast } = useToast();
@@ -40,17 +40,14 @@ export default function EditorPage() {
       originalText,
       suggestedText,
       reasoning,
-      selection: selection.range ? {
-        from: selection.range.startOffset,
-        to: selection.range.endOffset
-      } : undefined,
+      selectedText: selection.text,
     });
   };
 
   const handleConfirmEdit = () => {
     if (previewData && editorRef.current) {
-      // Apply the suggested text to the editor
-      // This would integrate with TipTap's replace selection method
+      // Apply the suggested text by replacing the currently selected text
+      editorRef.current.replaceSelectedText(previewData.suggestedText);
       toast({
         title: "Changes Applied",
         description: "AI suggestions have been applied to your document",
@@ -165,6 +162,7 @@ export default function EditorPage() {
           <div className="h-full p-6 overflow-y-auto">
             <div className="max-w-4xl mx-auto">
               <TipTapEditor
+                ref={editorRef}
                 document={document}
                 onSelectionUpdate={(sel) => {
                   // Handle selection updates if needed
