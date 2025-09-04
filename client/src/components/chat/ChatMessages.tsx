@@ -72,6 +72,14 @@ export function ChatMessages({ documentId }: ChatMessagesProps) {
               <p className="text-sm leading-relaxed" data-testid={`message-${message.id}`}>
                 {message.content}
               </p>
+              
+              {/* Show document edit indicator */}
+              {message.role === 'assistant' && message.metadata?.documentUpdated && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-primary">
+                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                  <span>Document updated</span>
+                </div>
+              )}
             </div>
             {message.timestamp && (
               <p className="text-xs text-muted-foreground mt-1">

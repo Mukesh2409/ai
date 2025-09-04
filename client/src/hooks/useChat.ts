@@ -19,10 +19,23 @@ export function useChat(documentId: string) {
         content,
         role: "user",
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({
         queryKey: ["/api/documents", documentId, "messages"],
       });
+      
+      // If AI made a direct edit to the document, refresh the document
+      if (data?.editResult?.documentUpdated) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/documents", documentId],
+        });
+        
+        toast({
+          title: "Document Updated",
+          description: "The AI assistant made changes to your document",
+          variant: "default",
+        });
+      }
     },
     onError: (error) => {
       toast({

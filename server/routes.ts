@@ -69,6 +69,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Store user message
       const userMessage = await storage.createChatMessage(parsed);
       
+      // Get current document content for context
+      const document = await storage.getDocument(parsed.documentId!);
+      const documentText = document?.content ? JSON.stringify(document.content) : "";
+      
       // Get AI response from Mistral
       const mistralApiKey = process.env.MISTRAL_API_KEY || process.env.VITE_MISTRAL_API_KEY || "";
       if (!mistralApiKey) {
@@ -86,14 +90,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           messages: [
             {
               role: "system",
-              content: "You are a helpful writing assistant. You can help users improve their writing, answer questions about content, and suggest edits. When users ask for specific edits, provide clear suggestions that can be applied to their text."
+              content: `You are a helpful writing assistant with access to the user's document. You can either respond with conversational help OR directly edit the document content.
+
+Current document content: ${documentText}
+
+If the user asks you to make changes to their document, respond with JSON in this format:
+{"type": "edit", "content": "new content to replace in document", "explanation": "brief explanation of changes"}
+
+Otherwise, respond normally with conversational text. You can help with writing, answer questions, provide suggestions, etc.`
             },
             {
               role: "user",
               content: parsed.content
             }
           ],
-          max_tokens: 500,
+          max_tokens: 1000,
           temperature: 0.7,
         }),
       });
@@ -105,17 +116,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const aiResponse = await response.json();
       const aiContent = aiResponse.choices[0]?.message?.content || "I apologize, but I couldn't generate a response at the moment.";
 
+      // Check if AI wants to make a direct edit
+      let editResult = null;
+      let finalAiContent = aiContent;
+      
+      try {
+        const parsed_ai = JSON.parse(aiContent);
+        if (parsed_ai.type === "edit" && parsed_ai.content) {
+          // AI wants to edit the document
+          const updatedDoc = await storage.updateDocument(parsed.documentId!, {
+            content: JSON.parse(parsed_ai.content)
+          });
+          
+          editResult = {
+            documentUpdated: true,
+            explanation: parsed_ai.explanation || "I've updated your document."
+          };
+          
+          finalAiContent = parsed_ai.explanation || "I've made the requested changes to your document.";
+        }
+      } catch (e) {
+        // Not JSON or not an edit request, treat as normal chat
+      }
+
       // Store AI response
       const aiMessage = await storage.createChatMessage({
         documentId: parsed.documentId,
-        content: aiContent,
+        content: finalAiContent,
         role: "assistant",
-        metadata: null,
+        metadata: editResult,
       });
 
       res.json({
         userMessage,
         aiMessage,
+        editResult,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
