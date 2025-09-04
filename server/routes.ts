@@ -120,23 +120,34 @@ Otherwise, respond normally with conversational text. You can help with writing,
       let editResult = null;
       let finalAiContent = aiContent;
       
-      try {
-        const parsed_ai = JSON.parse(aiContent);
-        if (parsed_ai.type === "edit" && parsed_ai.content) {
-          // AI wants to edit the document
-          const updatedDoc = await storage.updateDocument(parsed.documentId!, {
-            content: JSON.parse(parsed_ai.content)
-          });
+      // Look for JSON in the AI response (even if wrapped in text)
+      const jsonMatch = aiContent.match(/```json\s*([\s\S]*?)\s*```|({\s*"type"\s*:\s*"edit"[\s\S]*?})/);
+      
+      if (jsonMatch) {
+        try {
+          const jsonStr = jsonMatch[1] || jsonMatch[2];
+          const parsed_ai = JSON.parse(jsonStr);
           
-          editResult = {
-            documentUpdated: true,
-            explanation: parsed_ai.explanation || "I've updated your document."
-          };
-          
-          finalAiContent = parsed_ai.explanation || "I've made the requested changes to your document.";
+          if (parsed_ai.type === "edit" && parsed_ai.content) {
+            // AI wants to edit the document
+            const updatedDoc = await storage.updateDocument(parsed.documentId!, {
+              content: {
+                type: "doc",
+                content: parsed_ai.content
+              }
+            });
+            
+            editResult = {
+              documentUpdated: true,
+              explanation: parsed_ai.explanation || "I've updated your document."
+            };
+            
+            finalAiContent = parsed_ai.explanation || "I've made the requested changes to your document.";
+          }
+        } catch (e) {
+          console.error('Error parsing AI edit response:', e);
+          // Not valid JSON or not an edit request, treat as normal chat
         }
-      } catch (e) {
-        // Not JSON or not an edit request, treat as normal chat
       }
 
       // Store AI response
