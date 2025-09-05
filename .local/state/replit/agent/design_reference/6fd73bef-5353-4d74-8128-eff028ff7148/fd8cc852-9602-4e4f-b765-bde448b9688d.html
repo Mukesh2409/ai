@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Collaborative Editor - Professional Text Editing Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+    tailwind.config = {
+        darkMode: 'class',
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    popover: {
+                        DEFAULT: "var(--popover)",
+                        foreground: "var(--popover-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Inter", "system-ui", "sans-serif"],
+                }
+            },
+        }
+    };
+    </script>
+    
+    <style>
+        :root {
+            --background: hsl(222 84% 5%);
+            --foreground: hsl(210 40% 98%);
+            --card: hsl(222 84% 5%);
+            --card-foreground: hsl(210 40% 98%);
+            --popover: hsl(222 84% 5%);
+            --popover-foreground: hsl(210 40% 98%);
+            --primary: hsl(217 91% 60%);
+            --primary-foreground: hsl(222 84% 5%);
+            --secondary: hsl(217 32% 17%);
+            --secondary-foreground: hsl(210 40% 98%);
+            --muted: hsl(217 32% 17%);
+            --muted-foreground: hsl(215 20% 65%);
+            --accent: hsl(217 32% 17%);
+            --accent-foreground: hsl(210 40% 98%);
+            --destructive: hsl(0 84% 60%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(217 32% 17%);
+            --input: hsl(217 32% 17%);
+            --ring: hsl(217 91% 60%);
+            --radius: 6px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .editor-content {
+            min-height: 200px;
+            outline: none;
+            font-family: Inter, system-ui, sans-serif;
+            line-height: 1.6;
+        }
+
+        .editor-content:focus {
+            outline: none;
+        }
+
+        .floating-toolbar {
+            position: absolute;
+            z-index: 50;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.15s ease;
+            pointer-events: none;
+        }
+
+        .floating-toolbar.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .chat-message {
+            animation: messageSlide 0.2s ease-out;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .selection-highlight {
+            background: hsl(217 91% 60% / 0.2);
+            border-radius: 2px;
+        }
+
+        .sidebar-resize {
+            cursor: ew-resize;
+            transition: background-color 0.15s ease;
+        }
+
+        .sidebar-resize:hover {
+            background-color: hsl(217 91% 60% / 0.5);
+        }
+    </style>
+</head>
+
+<body class="bg-background text-foreground font-sans overflow-hidden">
+    <!-- @COMPONENT: AppLayout -->
+    <div class="flex h-screen">
+        
+        <!-- @COMPONENT: MainEditorArea -->
+        <div class="flex-1 flex flex-col min-w-0">
+            
+            <!-- @COMPONENT: EditorHeader -->
+            <header class="border-b border-border bg-card px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-primary flex items-center justify-center">
+                                <i class="fas fa-edit text-primary-foreground text-sm"></i>
+                            </div>
+                            <h1 class="text-xl font-semibold text-foreground">AI Collaborative Editor</h1>
+                        </div>
+                        <div class="h-6 w-px bg-border"></div>
+                        <span class="text-sm text-muted-foreground" data-bind="document.title" data-mock="true">Untitled Document</span>
+                        <div class="w-2 h-2 rounded-full bg-amber-500" title="Auto-saving..."></div>
+                    </div>
+                    
+                    <div class="flex items-center gap-3">
+                        <button class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors" 
+                                data-event="click:shareDocument">
+                            <i class="fas fa-share mr-2"></i>Share
+                        </button>
+                        <button class="px-3 py-1.5 text-sm bg-muted text-muted-foreground rounded-md hover:bg-muted/80 transition-colors"
+                                data-event="click:showSettings">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- @COMPONENT: EditorToolbar -->
+            <div class="border-b border-border bg-card px-6 py-3">
+                <div class="flex items-center gap-1">
+                    <div class="flex items-center gap-1 mr-4">
+                        <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:formatBold">
+                            <i class="fas fa-bold text-muted-foreground"></i>
+                        </button>
+                        <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:formatItalic">
+                            <i class="fas fa-italic text-muted-foreground"></i>
+                        </button>
+                        <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:formatUnderline">
+                            <i class="fas fa-underline text-muted-foreground"></i>
+                        </button>
+                        <div class="w-px h-6 bg-border mx-2"></div>
+                        <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:addHeading">
+                            <i class="fas fa-heading text-muted-foreground"></i>
+                        </button>
+                        <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:addList">
+                            <i class="fas fa-list-ul text-muted-foreground"></i>
+                        </button>
+                        <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:addTable">
+                            <i class="fas fa-table text-muted-foreground"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center gap-1">
+                        <div class="w-px h-6 bg-border mx-2"></div>
+                        <button class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors" 
+                                data-event="click:aiAssist">
+                            <i class="fas fa-magic-wand-sparkles mr-2"></i>Ask AI
+                        </button>
+                        <button class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors" 
+                                data-event="click:aiSummarize">
+                            <i class="fas fa-compress mr-2"></i>Summarize
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- @COMPONENT: EditorContainer -->
+            <div class="flex-1 relative bg-background">
+                <div class="h-full p-6 overflow-y-auto">
+                    <div class="max-w-4xl mx-auto">
+                        <!-- @COMPONENT: TipTapEditor -->
+                        <div class="editor-content bg-card rounded-lg border border-border p-6 min-h-[600px] focus-within:ring-2 focus-within:ring-ring focus-within:border-ring transition-all"
+                             contenteditable="true"
+                             data-implementation="TipTap editor instance">
+                            <h1 class="text-3xl font-bold text-foreground mb-6" data-mock="true">Welcome to AI Collaborative Editor</h1>
+                            
+                            <p class="text-foreground leading-relaxed mb-4" data-mock="true">
+                                This is your intelligent writing companion. Start typing, select text to see AI-powered editing options, 
+                                or chat with the AI assistant in the sidebar to get help with your content.
+                            </p>
+
+                            <p class="text-foreground leading-relaxed mb-4" data-mock="true">
+                                You can use natural language to request edits like "make this paragraph more concise" or 
+                                "convert this list into a table format". The AI will analyze your content and provide smart suggestions.
+                            </p>
+
+                            <ul class="list-disc list-inside text-foreground mb-4 space-y-2" data-mock="true">
+                                <li>Select any text to access the floating AI toolbar</li>
+                                <li>Chat with AI for writing assistance and content ideas</li>
+                                <li>Preview changes before applying them to your document</li>
+                                <li>Enjoy real-time collaboration features</li>
+                            </ul>
+
+                            <blockquote class="border-l-4 border-primary pl-4 italic text-muted-foreground mb-4" data-mock="true">
+                                "The future of writing is collaborative intelligence between humans and AI."
+                            </blockquote>
+
+                            <p class="text-foreground leading-relaxed" data-mock="true">
+                                Try selecting this paragraph to see the floating toolbar in action. You'll be able to shorten it, 
+                                expand it, change the tone, or apply other AI-powered transformations.
+                            </p>
+                        </div>
+                        <!-- @END_COMPONENT: TipTapEditor -->
+                    </div>
+                </div>
+
+                <!-- @COMPONENT: FloatingToolbar -->
+                <div id="floatingToolbar" class="floating-toolbar bg-popover border border-border rounded-lg shadow-lg p-2 flex items-center gap-2"
+                     data-implementation="Position based on text selection coordinates">
+                    <button class="px-3 py-2 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors flex items-center gap-2" 
+                            data-event="click:shortenText">
+                        <i class="fas fa-compress-alt"></i>
+                        Shorten
+                    </button>
+                    <button class="px-3 py-2 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors flex items-center gap-2" 
+                            data-event="click:expandText">
+                        <i class="fas fa-expand-alt"></i>
+                        Expand
+                    </button>
+                    <button class="px-3 py-2 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors flex items-center gap-2" 
+                            data-event="click:convertTable">
+                        <i class="fas fa-table"></i>
+                        Table
+                    </button>
+                    <button class="px-3 py-2 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors flex items-center gap-2" 
+                            data-event="click:improveGrammar">
+                        <i class="fas fa-spell-check"></i>
+                        Grammar
+                    </button>
+                    <div class="w-px h-6 bg-border"></div>
+                    <button class="px-3 py-2 text-xs bg-accent text-accent-foreground rounded hover:bg-accent/80 transition-colors flex items-center gap-2" 
+                            data-event="click:customEdit">
+                        <i class="fas fa-magic-wand-sparkles"></i>
+                        Custom Edit
+                    </button>
+                </div>
+                <!-- @END_COMPONENT: FloatingToolbar -->
+            </div>
+        </div>
+        <!-- @END_COMPONENT: MainEditorArea -->
+
+        <!-- @COMPONENT: ResizeHandle -->
+        <div class="w-1 bg-border hover:bg-primary/50 transition-colors cursor-ew-resize sidebar-resize" 
+             data-event="mousedown:startResize"></div>
+        <!-- @END_COMPONENT: ResizeHandle -->
+
+        <!-- @COMPONENT: ChatSidebar -->
+        <div class="w-80 bg-card border-l border-border flex flex-col" data-state="sidebarWidth:320px">
+            
+            <!-- @COMPONENT: ChatHeader -->
+            <header class="border-b border-border px-4 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                            <i class="fas fa-robot text-primary-foreground text-sm"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-medium text-foreground">AI Assistant</h2>
+                            <p class="text-xs text-muted-foreground">Online</p>
+                        </div>
+                    </div>
+                    <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:toggleChat">
+                        <i class="fas fa-times text-muted-foreground"></i>
+                    </button>
+                </div>
+            </header>
+            <!-- @END_COMPONENT: ChatHeader -->
+
+            <!-- @COMPONENT: ChatMessages -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" data-implementation="Auto-scroll to bottom on new messages">
+                
+                <!-- AI Welcome Message -->
+                <div class="flex gap-3 chat-message">
+                    <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-robot text-primary-foreground text-xs"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="bg-muted rounded-lg px-3 py-2">
+                            <p class="text-sm text-foreground" data-mock="true">
+                                Hello! I'm your AI writing assistant. I can help you edit text, improve content, 
+                                research topics, and even apply changes directly to your document. What would you like to work on?
+                            </p>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-1" data-bind="message.timestamp" data-mock="true">2 minutes ago</p>
+                    </div>
+                </div>
+
+                <!-- @MAP: chatMessages.map(message => ( -->
+                <!-- User Message Example -->
+                <div class="flex gap-3 chat-message justify-end">
+                    <div class="flex-1 text-right">
+                        <div class="bg-primary rounded-lg px-3 py-2 inline-block max-w-[85%]">
+                            <p class="text-sm text-primary-foreground" data-mock="true">
+                                Can you help me make the introduction paragraph more engaging?
+                            </p>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-1" data-mock="true">1 minute ago</p>
+                    </div>
+                    <div class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-user text-secondary-foreground text-xs"></i>
+                    </div>
+                </div>
+
+                <!-- AI Response Example -->
+                <div class="flex gap-3 chat-message">
+                    <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-robot text-primary-foreground text-xs"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="bg-muted rounded-lg px-3 py-2">
+                            <p class="text-sm text-foreground" data-mock="true">
+                                I've analyzed your introduction. Would you like me to make it more engaging by adding a compelling hook 
+                                and stronger opening statement? I can apply the changes directly to your document.
+                            </p>
+                            <div class="mt-3 flex gap-2">
+                                <button class="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                                        data-event="click:applyDirectEdit">
+                                    <i class="fas fa-wand-magic-sparkles mr-1"></i>
+                                    Apply Edit
+                                </button>
+                                <button class="px-3 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+                                        data-event="click:showPreview">
+                                    <i class="fas fa-eye mr-1"></i>
+                                    Preview
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-1" data-mock="true">Just now</p>
+                    </div>
+                </div>
+                <!-- @END_MAP )) -->
+
+                <!-- Typing indicator -->
+                <div class="flex gap-3 chat-message" id="typingIndicator" style="display: none;" data-state="aiTyping:boolean">
+                    <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-robot text-primary-foreground text-xs"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="bg-muted rounded-lg px-3 py-2 w-16">
+                            <div class="flex gap-1">
+                                <div class="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce"></div>
+                                <div class="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style="animation-delay: 0.1s;"></div>
+                                <div class="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: ChatMessages -->
+
+            <!-- @COMPONENT: ChatInput -->
+            <div class="border-t border-border p-4">
+                <div class="flex gap-2">
+                    <div class="flex-1 relative">
+                        <textarea class="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all"
+                                  placeholder="Ask AI to help with your writing..."
+                                  rows="2"
+                                  data-bind="chatInput"
+                                  data-event="keydown:handleChatSubmit"></textarea>
+                        <button class="absolute right-2 bottom-2 p-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                data-event="click:sendChatMessage"
+                                data-state="disabled:!chatInput.length">
+                            <i class="fas fa-paper-plane text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 mt-2">
+                    <button class="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1" 
+                            data-event="click:quickAction"
+                            data-action="improve">
+                        <i class="fas fa-sparkles text-xs"></i>Improve writing
+                    </button>
+                    <span class="text-muted-foreground">•</span>
+                    <button class="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1" 
+                            data-event="click:quickAction"
+                            data-action="research">
+                        <i class="fas fa-search text-xs"></i>Research topic
+                    </button>
+                    <span class="text-muted-foreground">•</span>
+                    <button class="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1" 
+                            data-event="click:quickAction"
+                            data-action="translate">
+                        <i class="fas fa-language text-xs"></i>Translate
+                    </button>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: ChatInput -->
+        </div>
+        <!-- @END_COMPONENT: ChatSidebar -->
+    </div>
+    <!-- @END_COMPONENT: AppLayout -->
+
+    <!-- @COMPONENT: PreviewModal -->
+    <div id="previewModal" class="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 opacity-0 invisible transition-all duration-200"
+         data-state="showPreview:boolean">
+        <div class="bg-card border border-border rounded-lg shadow-xl max-w-4xl max-h-[80vh] overflow-hidden w-full mx-4">
+            <!-- @COMPONENT: ModalHeader -->
+            <header class="border-b border-border px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <i class="fas fa-eye text-primary"></i>
+                        AI Edit Preview
+                    </h2>
+                    <button class="p-2 rounded hover:bg-muted transition-colors" data-event="click:closePreview">
+                        <i class="fas fa-times text-muted-foreground"></i>
+                    </button>
+                </div>
+            </header>
+            <!-- @END_COMPONENT: ModalHeader -->
+
+            <!-- @COMPONENT: ComparisonView -->
+            <div class="p-6 overflow-y-auto max-h-[60vh]">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- Original Content -->
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 pb-2 border-b border-border">
+                            <i class="fas fa-file-alt text-muted-foreground"></i>
+                            <h3 class="font-medium text-foreground">Original</h3>
+                        </div>
+                        <div class="bg-muted/50 rounded-lg p-4">
+                            <p class="text-sm text-foreground leading-relaxed" data-bind="originalText" data-mock="true">
+                                This is your intelligent writing companion. Start typing, select text to see AI-powered editing options, 
+                                or chat with the AI assistant in the sidebar to get help with your content.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- AI Suggestion -->
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 pb-2 border-b border-border">
+                            <i class="fas fa-magic-wand-sparkles text-primary"></i>
+                            <h3 class="font-medium text-foreground">AI Suggestion</h3>
+                        </div>
+                        <div class="bg-primary/10 rounded-lg p-4 border border-primary/20">
+                            <p class="text-sm text-foreground leading-relaxed" data-bind="suggestedText" data-mock="true">
+                                Meet your intelligent writing companion—an AI-powered assistant that transforms your content in real-time. 
+                                Select any text for instant editing options, or chat directly for personalized writing guidance.
+                            </p>
+                        </div>
+                        
+                        <!-- AI Reasoning -->
+                        <div class="bg-accent/50 rounded-lg p-3">
+                            <h4 class="text-xs font-medium text-accent-foreground mb-2 flex items-center gap-1">
+                                <i class="fas fa-lightbulb"></i>
+                                AI Reasoning
+                            </h4>
+                            <p class="text-xs text-accent-foreground" data-bind="aiReasoning" data-mock="true">
+                                Made the introduction more engaging by using active language, adding emotional appeal with "transforms," 
+                                and creating a stronger call-to-action flow.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: ComparisonView -->
+
+            <!-- @COMPONENT: ModalActions -->
+            <footer class="border-t border-border px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                    <i class="fas fa-clock"></i>
+                    <span data-bind="processingTime" data-mock="true">Processed in 1.2s</span>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <button class="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors" 
+                            data-event="click:cancelEdit">
+                        <i class="fas fa-times mr-2"></i>
+                        Cancel
+                    </button>
+                    <button class="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors" 
+                            data-event="click:confirmEdit">
+                        <i class="fas fa-check mr-2"></i>
+                        Apply Changes
+                    </button>
+                </div>
+            </footer>
+            <!-- @END_COMPONENT: ModalActions -->
+        </div>
+    </div>
+    <!-- @END_COMPONENT: PreviewModal -->
+
+    <!-- @COMPONENT: LoadingOverlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-40 opacity-0 invisible transition-all duration-200"
+         data-state="aiProcessing:boolean">
+        <div class="bg-card border border-border rounded-lg shadow-xl px-8 py-6 flex items-center gap-4">
+            <div class="animate-spin">
+                <i class="fas fa-magic-wand-sparkles text-primary text-xl"></i>
+            </div>
+            <div>
+                <p class="font-medium text-foreground" data-bind="loadingMessage" data-mock="true">AI is processing your request...</p>
+                <p class="text-sm text-muted-foreground" data-mock="true">This usually takes a few seconds</p>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: LoadingOverlay -->
+
+    <!-- @COMPONENT: NotificationToast -->
+    <div id="notificationToast" class="fixed top-4 right-4 z-50 opacity-0 invisible transition-all duration-300 transform translate-x-full"
+         data-state="showNotification:boolean">
+        <div class="bg-card border border-border rounded-lg shadow-lg px-4 py-3 flex items-center gap-3 min-w-[300px]">
+            <div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-check text-primary-foreground text-xs"></i>
+            </div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-foreground" data-bind="notification.title" data-mock="true">Changes applied successfully</p>
+                <p class="text-xs text-muted-foreground" data-bind="notification.description" data-mock="true">Your document has been updated with AI suggestions</p>
+            </div>
+            <button class="p-1 rounded hover:bg-muted transition-colors" data-event="click:dismissNotification">
+                <i class="fas fa-times text-muted-foreground text-xs"></i>
+            </button>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: NotificationToast -->
+
+    <!-- @COMPONENT: ContextMenu -->
+    <div id="contextMenu" class="fixed bg-popover border border-border rounded-lg shadow-lg py-2 z-50 min-w-[160px] opacity-0 invisible transition-all duration-150"
+         data-state="showContextMenu:boolean"
+         data-implementation="Position based on right-click coordinates">
+        <button class="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
+                data-event="click:contextAction"
+                data-action="aiEdit">
+            <i class="fas fa-magic-wand-sparkles text-primary"></i>
+            Edit with AI
+        </button>
+        <button class="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
+                data-event="click:contextAction"
+                data-action="explain">
+            <i class="fas fa-question-circle text-accent"></i>
+            Explain this
+        </button>
+        <button class="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
+                data-event="click:contextAction"
+                data-action="translate">
+            <i class="fas fa-language text-secondary"></i>
+            Translate
+        </button>
+        <div class="border-t border-border my-1"></div>
+        <button class="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
+                data-event="click:contextAction"
+                data-action="research">
+            <i class="fas fa-search text-muted-foreground"></i>
+            Research topic
+        </button>
+    </div>
+    <!-- @END_COMPONENT: ContextMenu -->
+
+    <!-- Agent Workflow Panel (Bonus Feature) -->
+    <!-- @COMPONENT: AgentPanel -->
+    <div id="agentPanel" class="fixed bottom-4 right-4 bg-card border border-border rounded-lg shadow-xl w-80 opacity-0 invisible transition-all duration-300 transform translate-y-4"
+         data-state="showAgentPanel:boolean">
+        
+        <!-- @COMPONENT: AgentHeader -->
+        <header class="border-b border-border px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded bg-accent flex items-center justify-center">
+                        <i class="fas fa-cog text-accent-foreground text-xs animate-pulse"></i>
+                    </div>
+                    <h3 class="font-medium text-foreground text-sm">Agent Workflow</h3>
+                </div>
+                <button class="p-1.5 rounded hover:bg-muted transition-colors" data-event="click:closeAgent">
+                    <i class="fas fa-times text-muted-foreground text-xs"></i>
+                </button>
+            </div>
+        </header>
+        <!-- @END_COMPONENT: AgentHeader -->
+
+        <!-- @COMPONENT: AgentContent -->
+        <div class="p-4 space-y-3">
+            <div class="text-sm text-foreground">
+                <p class="font-medium mb-2" data-mock="true">Current Task:</p>
+                <p class="text-muted-foreground" data-bind="agentTask" data-mock="true">Researching "Next.js 15 latest features" and preparing summary...</p>
+            </div>
+
+            <!-- Agent Steps -->
+            <div class="space-y-2">
+                <div class="flex items-center gap-2 text-xs">
+                    <div class="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <i class="fas fa-check text-primary-foreground text-[8px]"></i>
+                    </div>
+                    <span class="text-foreground">Web search completed</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <div class="w-4 h-4 rounded-full bg-accent flex items-center justify-center">
+                        <div class="w-1.5 h-1.5 bg-accent-foreground rounded-full animate-pulse"></div>
+                    </div>
+                    <span class="text-muted-foreground">Processing content...</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <div class="w-4 h-4 rounded-full bg-muted"></div>
+                    <span class="text-muted-foreground">Generating summary</span>
+                </div>
+            </div>
+
+            <!-- Tools Available -->
+            <div class="border-t border-border pt-3">
+                <p class="text-xs font-medium text-foreground mb-2">Available Tools:</p>
+                <div class="flex gap-2 flex-wrap">
+                    <span class="px-2 py-1 bg-secondary text-secondary-foreground rounded text-xs">Web Search</span>
+                    <span class="px-2 py-1 bg-secondary text-secondary-foreground rounded text-xs">Content Crawler</span>
+                    <span class="px-2 py-1 bg-secondary text-secondary-foreground rounded text-xs">Summarizer</span>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: AgentContent -->
+    </div>
+    <!-- @END_COMPONENT: AgentPanel -->
+
+    <script>
+        (() => {
+            // TODO: Implement TipTap editor initialization and AI API integration
+            // TODO: Handle text selection for floating toolbar positioning
+            // TODO: Implement WebSocket or polling for real-time chat
+            // TODO: Add Mistral AI API integration for text processing
+            // TODO: Implement agent workflow system with web search capabilities
+            
+            // Demo functionality for mockup interaction
+            const floatingToolbar = document.getElementById('floatingToolbar');
+            const previewModal = document.getElementById('previewModal');
+            const agentPanel = document.getElementById('agentPanel');
+            const notificationToast = document.getElementById('notificationToast');
+            
+            // Simulate text selection for floating toolbar
+            const editorContent = document.querySelector('.editor-content');
+            
+            editorContent.addEventListener('mouseup', function() {
+                const selection = window.getSelection();
+                if (selection.toString().length > 0) {
+                    const range = selection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+                    
+                    floatingToolbar.style.left = `${rect.left + rect.width / 2 - floatingToolbar.offsetWidth / 2}px`;
+                    floatingToolbar.style.top = `${rect.top - 50}px`;
+                    floatingToolbar.classList.add('active');
+                } else {
+                    floatingToolbar.classList.remove('active');
+                }
+            });
+
+            // Hide floating toolbar on click outside
+            document.addEventListener('click', function(e) {
+                if (!floatingToolbar.contains(e.target) && !editorContent.contains(e.target)) {
+                    floatingToolbar.classList.remove('active');
+                }
+            });
+
+            // Preview modal functionality
+            document.querySelectorAll('[data-event*="showPreview"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    previewModal.classList.remove('opacity-0', 'invisible');
+                });
+            });
+
+            document.querySelectorAll('[data-event*="closePreview"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    previewModal.classList.add('opacity-0', 'invisible');
+                });
+            });
+
+            // Agent panel toggle
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'j') {
+                    e.preventDefault();
+                    agentPanel.classList.toggle('opacity-0');
+                    agentPanel.classList.toggle('invisible');
+                    agentPanel.classList.toggle('translate-y-4');
+                }
+            });
+
+            // Notification system
+            function showNotification(title, description, type = 'success') {
+                const titleEl = notificationToast.querySelector('[data-bind="notification.title"]');
+                const descEl = notificationToast.querySelector('[data-bind="notification.description"]');
+                const iconEl = notificationToast.querySelector('.fa-check');
+                
+                titleEl.textContent = title;
+                descEl.textContent = description;
+                
+                if (type === 'error') {
+                    iconEl.className = 'fas fa-exclamation-triangle text-destructive-foreground text-xs';
+                } else {
+                    iconEl.className = 'fas fa-check text-primary-foreground text-xs';
+                }
+                
+                notificationToast.classList.remove('opacity-0', 'invisible', 'translate-x-full');
+                
+                setTimeout(() => {
+                    notificationToast.classList.add('opacity-0', 'invisible', 'translate-x-full');
+                }, 4000);
+            }
+
+            // Demo AI processing
+            document.querySelectorAll('[data-event*="confirmEdit"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    previewModal.classList.add('opacity-0', 'invisible');
+                    showNotification('Changes Applied', 'AI suggestions have been applied to your document');
+                });
+            });
+
+            // Chat input auto-resize
+            const chatTextarea = document.querySelector('textarea[data-bind="chatInput"]');
+            if (chatTextarea) {
+                chatTextarea.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                });
+            }
+
+            // Simulate AI typing
+            function simulateTyping() {
+                const typingIndicator = document.getElementById('typingIndicator');
+                typingIndicator.style.display = 'flex';
+                
+                setTimeout(() => {
+                    typingIndicator.style.display = 'none';
+                    // Add new AI message here
+                }, 2000);
+            }
+
+            // Quick action buttons
+            document.querySelectorAll('[data-event*="quickAction"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    simulateTyping();
+                });
+            });
+
+            // Sidebar resizing functionality
+            let isResizing = false;
+            const sidebar = document.querySelector('.w-80');
+            const resizeHandle = document.querySelector('.sidebar-resize');
+
+            resizeHandle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'ew-resize';
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                const newWidth = window.innerWidth - e.clientX;
+                if (newWidth >= 280 && newWidth <= 500) {
+                    sidebar.style.width = `${newWidth}px`;
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    switch(e.key) {
+                        case 'k':
+                            e.preventDefault();
+                            // Focus chat input
+                            chatTextarea?.focus();
+                            break;
+                        case '/':
+                            e.preventDefault();
+                            // Show quick commands
+                            break;
+                    }
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
